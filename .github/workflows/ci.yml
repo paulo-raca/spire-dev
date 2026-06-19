@@ -100,19 +100,23 @@ jobs:
           provenance: mode=max
           sbom: true
 
-      - name: Sign image with cosign (keyless, OIDC)
+      - name: Sign image with cosign (keyless, OIDC, OCI 1.1 referrers)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
           TAGS:   ${{ steps.meta.outputs.tags }}
         run: |
           set -eu
-          # Cosign attaches one signature per image-digest. The digest is
-          # the same for every tag pointing at this build, so sign once
-          # by digest and every tag is covered.
-          # The first tag is used purely as a repo reference.
+          # Cosign signs once per image-digest; every tag pointing at this
+          # build is covered by a single signature. The first tag is used
+          # purely to derive the repo reference.
           first_tag=$(printf '%s\n' "$TAGS" | head -n1)
           repo="${first_tag%%:*}"
-          cosign sign --yes "${repo}@${DIGEST}"
+          # --registry-referrers-mode=oci-1-1 stores the signature as an
+          # OCI 1.1 referrer to the image manifest instead of as a sibling
+          # `sha256-<digest>.sig` tag, keeping the tag list clean.
+          cosign sign --yes \
+            --registry-referrers-mode=oci-1-1 \
+            "${repo}@${DIGEST}"
 
       - name: Sync README to Docker Hub
         uses: peter-evans/dockerhub-description@v5
