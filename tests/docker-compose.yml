@@ -10,17 +10,15 @@ services:
     volumes:
       - spire-sockets:/run/spire/sockets
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9091/ready && wget -qO- http://127.0.0.1:9092/ready"]
-      interval: 2s
-      timeout: 2s
-      retries: 30
-      start_period: 15s
 
+  # Test workloads reuse the spire-dev image only for its bundled
+  # spire-agent CLI; they aren't running SPIRE themselves, so the image's
+  # HEALTHCHECK (which probes the server+agent ports) doesn't apply.
   alpha:
     image: paulocosta56/spire-dev:ci
     pull_policy: never
     entrypoint: ["sleep", "infinity"]
+    healthcheck: { test: ["CMD-SHELL", "exit 0"], interval: 2s }
     labels:
       io.spiffe.workload: alpha
     volumes:
@@ -32,6 +30,7 @@ services:
     image: paulocosta56/spire-dev:ci
     pull_policy: never
     entrypoint: ["sleep", "infinity"]
+    healthcheck: { test: ["CMD-SHELL", "exit 0"], interval: 2s }
     labels:
       io.spiffe.workload: beta
     volumes:
@@ -44,6 +43,7 @@ services:
     image: paulocosta56/spire-dev:ci
     pull_policy: never
     entrypoint: ["sleep", "infinity"]
+    healthcheck: { test: ["CMD-SHELL", "exit 0"], interval: 2s }
     volumes:
       - spire-sockets:/run/spire/sockets:ro
     depends_on:

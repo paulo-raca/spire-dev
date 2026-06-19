@@ -37,4 +37,8 @@ ENV SPIRE_JWKS_PORT="8080"
 EXPOSE 8080
 VOLUME ["/run/spire/sockets"]
 
+HEALTHCHECK --interval=3s --timeout=2s --retries=20 --start-period=30s \
+  CMD wget -qO- http://127.0.0.1:9091/ready >/dev/null 2>&1 \
+   && wget -qO- http://127.0.0.1:9092/ready >/dev/null 2>&1
+
 ENTRYPOINT ["/usr/local/bin/run.sh"]

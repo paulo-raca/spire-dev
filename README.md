@@ -99,21 +99,9 @@ If you don't need JWKS publication, ignore the port — the endpoint runs intern
 
 ## Health checks
 
-Both processes expose HTTP health endpoints (bound to localhost inside the container):
+The image ships a `HEALTHCHECK` that probes both processes' `/ready` endpoints (server `:9091`, agent `:9092`). You don't need to add one in compose — `depends_on: { spire: { condition: service_healthy } }` works out of the box.
 
-- Server `:9091/ready` and `/live`
-- Agent  `:9092/ready` and `/live`
-
-A docker healthcheck that probes both is recommended; the image doesn't ship one because the appropriate `start_period`/`interval`/`retries` depend on how fast your stack starts.
-
-```yaml
-healthcheck:
-  test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9091/ready && wget -qO- http://127.0.0.1:9092/ready"]
-  interval: 3s
-  timeout: 2s
-  retries: 20
-  start_period: 30s
-```
+Override only if your stack needs a different `interval`/`start_period` (defaults: `3s` / `30s`).
 
 ## Versioning
 
