@@ -1,7 +1,7 @@
 # Single source of truth for the upstream SPIRE version this image tracks.
 # Bump this, tag a matching v<version> release, and CI publishes
 # paulocosta56/spire-dev:<version>.
-ARG SPIRE_VERSION=1.13.0
+ARG SPIRE_VERSION=1.15.0
 
 FROM ghcr.io/spiffe/spire-server:${SPIRE_VERSION} AS spire-server
 FROM ghcr.io/spiffe/spire-agent:${SPIRE_VERSION}  AS spire-agent
