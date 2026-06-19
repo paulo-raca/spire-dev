@@ -3,39 +3,68 @@ name: ci
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
+  schedule:
+    # Pick up new upstream SPIRE releases without a manual bump.
+    - cron: '0 6 * * *'
 
 permissions:
   contents: read
 
 jobs:
+  discover:
+    name: Discover latest SPIRE release
+    runs-on: ubuntu-latest
+    outputs:
+      full:  ${{ steps.ver.outputs.full }}
+      minor: ${{ steps.ver.outputs.minor }}
+      major: ${{ steps.ver.outputs.major }}
+    steps:
+      - name: Query GitHub for spiffe/spire's latest release
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          full=$(gh api repos/spiffe/spire/releases/latest --jq '.tag_name' | sed 's/^v//')
+          [ -n "$full" ] || { echo "could not detect latest SPIRE version" >&2; exit 1; }
+          {
+            echo "full=$full"
+            echo "minor=$(echo "$full" | cut -d. -f1-2)"
+            echo "major=$(echo "$full" | cut -d. -f1)"
+          } | tee -a "$GITHUB_OUTPUT"
+
   test:
     name: Build & integration tests
+    needs: discover
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v4
 
-      - name: Run integration tests
+      - name: Run integration tests against latest SPIRE
+        env:
+          SPIRE_VERSION: ${{ needs.discover.outputs.full }}
         run: ./tests/test.sh
 
   publish:
-    name: Build & push
-    needs: test
+    name: Build, push, sign
+    needs: [discover, test]
     runs-on: ubuntu-latest
-    # Only push from main or tag pushes on the canonical repo, not from PRs.
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
+      id-token: write  # OIDC token for keyless cosign signing
     steps:
       - uses: actions/checkout@v7
 
       - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v4
+
+      - uses: sigstore/cosign-installer@v3
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
@@ -49,24 +78,43 @@ jobs:
         with:
           images: paulocosta56/spire-dev
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=edge,enable={{is_default_branch}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=${{ needs.discover.outputs.full }}
+            type=raw,value=${{ needs.discover.outputs.minor }}
+            type=raw,value=${{ needs.discover.outputs.major }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.version=${{ needs.discover.outputs.full }}
 
-      - name: Build and push
+      - name: Build and push (with SLSA provenance + SBOM)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          pull: true
+          build-args: |
+            SPIRE_VERSION=${{ needs.discover.outputs.full }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Sign image with cosign (keyless, OIDC)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS:   ${{ steps.meta.outputs.tags }}
+        run: |
+          set -eu
+          # Cosign attaches one signature per image-digest. The digest is
+          # the same for every tag pointing at this build, so sign once
+          # by digest and every tag is covered.
+          # The first tag is used purely as a repo reference.
+          first_tag=$(printf '%s\n' "$TAGS" | head -n1)
+          repo="${first_tag%%:*}"
+          cosign sign --yes "${repo}@${DIGEST}"
 
       - name: Sync README to Docker Hub
-        if: github.ref == 'refs/heads/main'
         uses: peter-evans/dockerhub-description@v5
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}

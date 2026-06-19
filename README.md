@@ -105,15 +105,33 @@ Override only if your stack needs a different `interval`/`start_period` (default
 
 ## Versioning
 
-Image tags track the upstream SPIRE release the image is built from:
+The SPIRE version is a build arg discovered automatically by CI from `https://github.com/spiffe/spire/releases/latest`. Local builds without `--build-arg SPIRE_VERSION=...` fall back to the default pinned in the Dockerfile.
 
-- `paulocosta56/spire-dev:1.13.0` — pinned to `ghcr.io/spiffe/spire-{server,agent}:1.13.0`
-- `paulocosta56/spire-dev:1.13` — moving tag for the latest patch of a minor line
-- `paulocosta56/spire-dev:1` — moving tag for the latest of a major line
-- `paulocosta56/spire-dev:latest` — moving tag for the latest released SPIRE
-- `paulocosta56/spire-dev:edge` — moving tag for the `main` branch
+CI runs on every push to `main` and on a daily cron. Each run:
 
-To bump: change `ARG SPIRE_VERSION` in the Dockerfile and push a `v<version>` git tag. CI builds and pushes the tag set above.
+1. Queries the GitHub releases API for `spiffe/spire`'s latest tag.
+2. Builds the multi-arch image with that version (`linux/amd64` + `linux/arm64`).
+3. Publishes:
+   - `paulocosta56/spire-dev:<full>`          — e.g. `1.15.1`, exact pin
+   - `paulocosta56/spire-dev:<major>.<minor>` — e.g. `1.15`, moving
+   - `paulocosta56/spire-dev:<major>`         — e.g. `1`, moving
+   - `paulocosta56/spire-dev:latest`          — always the most recent build
+
+When SPIRE ships a new release, the next daily CI run picks it up automatically. No PR, no git tag, no Dockerfile edit needed.
+
+## Supply chain
+
+Every published image is built with:
+
+- **SLSA provenance** (`provenance: mode=max`) — the build-time attestation lists the source repo, commit, workflow, and the inputs that went into the image.
+- **SBOM** — a Software Bill of Materials is attached as an OCI artifact alongside the image.
+- **Cosign keyless signature** — signed via Sigstore OIDC from the GitHub Actions runner identity. Verify with:
+
+  ```bash
+  cosign verify paulocosta56/spire-dev:latest \
+    --certificate-identity-regexp 'https://github\.com/paulo-raca/spire-dev/' \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com
+  ```
 
 ## Limitations
 

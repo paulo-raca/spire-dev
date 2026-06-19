@@ -1,23 +1,23 @@
-# Single source of truth for the upstream SPIRE version this image tracks.
-# Bump this, tag a matching v<version> release, and CI publishes
-# paulocosta56/spire-dev:<version>.
-ARG SPIRE_VERSION=1.15.0
-
+# SPIRE doesn't publish a `:latest` tag upstream, so the version is a
+# build-arg. CI discovers the latest stable release from GitHub and passes
+# it in via `--build-arg SPIRE_VERSION=...`; local builds without that
+# argument fall back to the default below. The image tag published by CI
+# always matches the SPIRE version that was actually built in.
+ARG SPIRE_VERSION=1.15.1
 FROM ghcr.io/spiffe/spire-server:${SPIRE_VERSION} AS spire-server
 FROM ghcr.io/spiffe/spire-agent:${SPIRE_VERSION}  AS spire-agent
 
-FROM alpine:3.24
+FROM alpine:latest
 
-ARG SPIRE_VERSION
 LABEL org.opencontainers.image.title="spire-dev"
 LABEL org.opencontainers.image.description="All-in-one SPIRE container for docker-compose dev environments"
 LABEL org.opencontainers.image.source="https://github.com/paulo-raca/spire-dev"
-LABEL org.opencontainers.image.version="${SPIRE_VERSION}"
-LABEL io.spiffe.spire.version="${SPIRE_VERSION}"
+# org.opencontainers.image.version is injected at build time by CI
+# (docker/metadata-action), so it stays in sync with the image tag.
 
 # jq converts SPIRE's SPIFFE bundle to plain JWKS for the /jwks.json
-# endpoint; busybox-extras adds the `httpd` applet (the alpine base busybox
-# package doesn't include it) which serves the file.
+# endpoint; busybox-extras adds the `httpd` applet (the alpine base
+# busybox package doesn't include it) which serves the file.
 RUN apk add --no-cache jq busybox-extras
 
 COPY --from=spire-server /opt/spire/bin/spire-server /opt/spire/bin/spire-server
