@@ -107,6 +107,8 @@ jobs:
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
           TAGS:   ${{ steps.meta.outputs.tags }}
+          # Required by cosign to enable --registry-referrers-mode=oci-1-1.
+          COSIGN_EXPERIMENTAL: "1"
         run: |
           set -eu
           # One signature per image-digest covers every tag pointing at this
