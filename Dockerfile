@@ -1,19 +1,22 @@
-# Single source of truth for the upstream SPIRE version this image tracks.
-# Bump this, tag a matching v<version> release, and CI publishes
-# paulocosta56/spire-dev:<version>.
-ARG SPIRE_VERSION=1.15.0
-
-FROM ghcr.io/spiffe/spire-server:${SPIRE_VERSION} AS spire-server
-FROM ghcr.io/spiffe/spire-agent:${SPIRE_VERSION}  AS spire-agent
+# Upstream SPIRE version this image tracks. Dependabot bumps both FROM
+# lines together (grouped via .github/dependabot.yml). The image tag
+# published by CI matches the SPIRE version (e.g. spire-dev:1.15.1 ⇒
+# spire-{server,agent}:1.15.1).
+#
+# NOTE: deliberately hardcoded — Dependabot's docker ecosystem does not
+# follow `ARG NAME=…` defaults referenced as `FROM image:${NAME}` (see
+# dependabot/dependabot-core#2057).
+FROM ghcr.io/spiffe/spire-server:1.15.0 AS spire-server
+FROM ghcr.io/spiffe/spire-agent:1.15.0  AS spire-agent
 
 FROM alpine:3.20
 
-ARG SPIRE_VERSION
 LABEL org.opencontainers.image.title="spire-dev"
 LABEL org.opencontainers.image.description="All-in-one SPIRE container for docker-compose dev environments"
 LABEL org.opencontainers.image.source="https://github.com/paulo-raca/spire-dev"
-LABEL org.opencontainers.image.version="${SPIRE_VERSION}"
-LABEL io.spiffe.spire.version="${SPIRE_VERSION}"
+# org.opencontainers.image.version is injected at build time by CI from
+# the git ref (docker/metadata-action), so it stays in sync with the tag
+# without having to edit a literal here too.
 
 # jq converts SPIRE's SPIFFE bundle to plain JWKS for the /jwks.json
 # endpoint; busybox-extras adds the `httpd` applet (the alpine base busybox
