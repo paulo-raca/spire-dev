@@ -6,7 +6,7 @@ ARG SPIRE_VERSION=1.15.0
 FROM ghcr.io/spiffe/spire-server:${SPIRE_VERSION} AS spire-server
 FROM ghcr.io/spiffe/spire-agent:${SPIRE_VERSION}  AS spire-agent
 
-FROM alpine:3.20
+FROM alpine:3.24
 
 ARG SPIRE_VERSION
 LABEL org.opencontainers.image.title="spire-dev"
