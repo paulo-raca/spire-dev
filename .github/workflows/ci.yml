@@ -64,7 +64,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
-      - uses: sigstore/cosign-installer@v4
+      - uses: sigstore/cosign-installer@v4.1.2
         with:
           # Installer's default cosign-release lags upstream. Pin to
           # current cosign so we can rely on modern defaults (OCI 1.1
