@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Tracks the upstream SPIRE release this image pins.
+  # The Dockerfile's `ARG SPIRE_VERSION` is referenced by two FROM lines
+  # (spire-server and spire-agent); Dependabot bumps the ARG default
+  # and both stages move together in a single PR.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: daily
+    groups:
+      spire:
+        patterns:
+          - "ghcr.io/spiffe/spire-*"
+
+  # Pins for actions/checkout, docker/*, peter-evans/dockerhub-description.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
