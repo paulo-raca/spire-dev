@@ -3,7 +3,6 @@ name: ci
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
 
@@ -26,8 +25,7 @@ jobs:
     name: Build & push
     needs: test
     runs-on: ubuntu-latest
-    # Only push from main or tag pushes on the canonical repo, not from PRs.
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
     steps:
@@ -43,18 +41,31 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Read SPIRE version from Dockerfile
+        id: ver
+        run: |
+          set -e
+          full=$(grep -oE 'spire-server:[0-9]+\.[0-9]+\.[0-9]+' Dockerfile \
+                  | head -1 | cut -d: -f2)
+          [ -n "$full" ] || { echo "could not detect SPIRE version" >&2; exit 1; }
+          {
+            echo "full=$full"
+            echo "minor=$(echo "$full" | cut -d. -f1-2)"
+            echo "major=$(echo "$full" | cut -d. -f1)"
+          } | tee -a "$GITHUB_OUTPUT"
+
       - name: Compute tags
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: paulocosta56/spire-dev
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=edge,enable={{is_default_branch}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=${{ steps.ver.outputs.full }}
+            type=raw,value=${{ steps.ver.outputs.minor }}
+            type=raw,value=${{ steps.ver.outputs.major }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.version=${{ steps.ver.outputs.full }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -66,7 +77,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Sync README to Docker Hub
-        if: github.ref == 'refs/heads/main'
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}

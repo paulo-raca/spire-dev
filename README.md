@@ -105,15 +105,19 @@ Override only if your stack needs a different `interval`/`start_period` (default
 
 ## Versioning
 
-Image tags track the upstream SPIRE release the image is built from:
+Image tags track the upstream SPIRE release the image is built from. On every push to `main`, CI extracts the version from the Dockerfile's `FROM ghcr.io/spiffe/spire-server:<version>` line and publishes:
 
-- `paulocosta56/spire-dev:1.13.0` — pinned to `ghcr.io/spiffe/spire-{server,agent}:1.13.0`
-- `paulocosta56/spire-dev:1.13` — moving tag for the latest patch of a minor line
-- `paulocosta56/spire-dev:1` — moving tag for the latest of a major line
-- `paulocosta56/spire-dev:latest` — moving tag for the latest released SPIRE
-- `paulocosta56/spire-dev:edge` — moving tag for the `main` branch
+- `paulocosta56/spire-dev:<full>`  — e.g. `1.15.1`, exact pin
+- `paulocosta56/spire-dev:<major>.<minor>` — e.g. `1.15`, moving
+- `paulocosta56/spire-dev:<major>` — e.g. `1`, moving
+- `paulocosta56/spire-dev:latest` — moving
 
-To bump: change `ARG SPIRE_VERSION` in the Dockerfile and push a `v<version>` git tag. CI builds and pushes the tag set above.
+No separate git tag is needed. The flow is:
+
+1. Dependabot opens a daily PR bumping both `FROM` lines together (grouped via `.github/dependabot.yml`).
+2. CI runs the integration tests on the PR.
+3. You merge the PR.
+4. CI on `main` reads the new version straight from the Dockerfile and pushes the full tag set above to Docker Hub.
 
 ## Limitations
 
