@@ -1,0 +1,53 @@
+services:
+  spire:
+    image: paulocosta56/spire-dev:ci
+    pull_policy: never
+    pid: host
+    environment:
+      SPIRE_TRUST_DOMAIN: test.local
+      SPIRE_WORKLOADS: alpha beta
+      SPIRE_JWKS_REFRESH_INTERVAL: "1"
+    volumes:
+      - spire-sockets:/run/spire/sockets
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9091/ready && wget -qO- http://127.0.0.1:9092/ready"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 15s
+
+  alpha:
+    image: paulocosta56/spire-dev:ci
+    pull_policy: never
+    entrypoint: ["sleep", "infinity"]
+    labels:
+      io.spiffe.workload: alpha
+    volumes:
+      - spire-sockets:/run/spire/sockets:ro
+    depends_on:
+      spire: { condition: service_healthy }
+
+  beta:
+    image: paulocosta56/spire-dev:ci
+    pull_policy: never
+    entrypoint: ["sleep", "infinity"]
+    labels:
+      io.spiffe.workload: beta
+    volumes:
+      - spire-sockets:/run/spire/sockets:ro
+    depends_on:
+      spire: { condition: service_healthy }
+
+  # An unlabeled workload — must NOT get any SVID.
+  intruder:
+    image: paulocosta56/spire-dev:ci
+    pull_policy: never
+    entrypoint: ["sleep", "infinity"]
+    volumes:
+      - spire-sockets:/run/spire/sockets:ro
+    depends_on:
+      spire: { condition: service_healthy }
+
+volumes:
+  spire-sockets:

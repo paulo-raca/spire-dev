@@ -1,0 +1,27 @@
+name: dockerhub-readme
+
+# Sync README.md to Docker Hub repo description whenever README changes on main.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - .github/workflows/dockerhub-readme.yml
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: paulocosta56/spire-dev
+          short-description: ${{ github.event.repository.description }}
+          readme-filepath: ./README.md

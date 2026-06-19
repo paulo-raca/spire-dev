@@ -1,0 +1,31 @@
+agent {
+    data_dir = "/run/spire/agent-data"
+    log_level = "INFO"
+    server_address = "127.0.0.1"
+    server_port = "8081"
+    socket_path = "/run/spire/sockets/agent.sock"
+    trust_bundle_path = "/run/spire/agent-data/bundle.crt"
+    trust_domain = "@TRUST_DOMAIN@"
+}
+
+plugins {
+    NodeAttestor "join_token" {
+        plugin_data {}
+    }
+    KeyManager "memory" {
+        plugin_data {}
+    }
+    WorkloadAttestor "docker" {
+        plugin_data {
+            docker_socket_path = "unix:///var/run/docker.sock"
+        }
+    }
+}
+
+health_checks {
+    listener_enabled = true
+    bind_address = "127.0.0.1"
+    bind_port = "9092"
+    live_path = "/live"
+    ready_path = "/ready"
+}
