@@ -50,20 +50,21 @@ jobs:
         run: ./tests/test.sh
 
   publish:
-    name: Build, push, attest
+    name: Build, push, sign
     needs: [discover, test]
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
       id-token: write       # OIDC for Sigstore signing
-      attestations: write   # for actions/attest-build-provenance
     steps:
       - uses: actions/checkout@v7
 
       - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v4
+
+      - uses: sigstore/cosign-installer@v3
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
@@ -102,17 +103,22 @@ jobs:
           provenance: mode=max
           sbom: true
 
-      - name: Attest build provenance (SLSA v1.0, signed via Sigstore)
-        uses: actions/attest-build-provenance@v3
-        with:
-          subject-name: paulocosta56/spire-dev
-          subject-digest: ${{ steps.build.outputs.digest }}
-          # push-to-registry is off because attest-build-provenance's
-          # OCI-push code path doesn't recognise the credentials
-          # docker/login-action writes for Docker Hub (issue
-          # actions/attest-build-provenance#202). The attestation still
-          # lives in GitHub's attestation store, verifiable via
-          # `gh attestation verify oci://...`.
+      - name: Sign image with cosign (keyless OIDC, OCI 1.1 referrer)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS:   ${{ steps.meta.outputs.tags }}
+        run: |
+          set -eu
+          # One signature per image-digest covers every tag pointing at this
+          # build. The first tag is used only to derive the repo reference.
+          first_tag=$(printf '%s\n' "$TAGS" | head -n1)
+          repo="${first_tag%%:*}"
+          # --registry-referrers-mode=oci-1-1 stores the signature as an
+          # OCI 1.1 referrer to the image manifest instead of as a sibling
+          # `sha256-<digest>.sig` tag, keeping the tag list clean.
+          cosign sign --yes \
+            --registry-referrers-mode=oci-1-1 \
+            "${repo}@${DIGEST}"
 
       - name: Sync README to Docker Hub
         uses: peter-evans/dockerhub-description@v5
