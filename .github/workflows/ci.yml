@@ -96,9 +96,13 @@ jobs:
             SPIRE_VERSION=${{ needs.discover.outputs.full }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # BuildKit-side SLSA v0.2 provenance describing the build inputs,
+          # layer steps, and cache state — complementary to the workflow-side
+          # attestation produced by actions/attest-build-provenance below.
+          provenance: mode=max
           sbom: true
 
-      - name: Attest build provenance (SLSA, signed via Sigstore)
+      - name: Attest build provenance (SLSA v1.0, signed via Sigstore)
         uses: actions/attest-build-provenance@v3
         with:
           subject-name: paulocosta56/spire-dev
