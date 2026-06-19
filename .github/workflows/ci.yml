@@ -107,7 +107,12 @@ jobs:
         with:
           subject-name: paulocosta56/spire-dev
           subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+          # push-to-registry is off because attest-build-provenance's
+          # OCI-push code path doesn't recognise the credentials
+          # docker/login-action writes for Docker Hub (issue
+          # actions/attest-build-provenance#202). The attestation still
+          # lives in GitHub's attestation store, verifiable via
+          # `gh attestation verify oci://...`.
 
       - name: Sync README to Docker Hub
         uses: peter-evans/dockerhub-description@v5
