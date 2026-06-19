@@ -105,19 +105,19 @@ Override only if your stack needs a different `interval`/`start_period` (default
 
 ## Versioning
 
-Image tags track the upstream SPIRE release the image is built from. On every push to `main`, CI extracts the version from the Dockerfile's `FROM ghcr.io/spiffe/spire-server:<version>` line and publishes:
+The SPIRE version is a build arg. CI discovers the latest stable release from `https://github.com/spiffe/spire/releases/latest`, passes it as `--build-arg SPIRE_VERSION=<full>`, and publishes the image with that version baked into its tags. Local builds default to the version pinned in the Dockerfile when no `--build-arg` is supplied (a fallback for offline / quick experimentation; CI never uses it).
 
-- `paulocosta56/spire-dev:<full>`  — e.g. `1.15.1`, exact pin
-- `paulocosta56/spire-dev:<major>.<minor>` — e.g. `1.15`, moving
-- `paulocosta56/spire-dev:<major>` — e.g. `1`, moving
-- `paulocosta56/spire-dev:latest` — moving
+CI runs on every push to `main` and on a daily cron. Each run:
 
-No separate git tag is needed. The flow is:
+1. Queries the GitHub releases API for `spiffe/spire`'s latest tag.
+2. Builds the multi-arch image with that version.
+3. Publishes:
+   - `paulocosta56/spire-dev:<full>`           — e.g. `1.15.1`, exact pin
+   - `paulocosta56/spire-dev:<major>.<minor>`  — e.g. `1.15`, moving
+   - `paulocosta56/spire-dev:<major>`          — e.g. `1`, moving
+   - `paulocosta56/spire-dev:latest`           — always the most recent build
 
-1. Dependabot opens a daily PR bumping both `FROM` lines together (grouped via `.github/dependabot.yml`).
-2. CI runs the integration tests on the PR.
-3. You merge the PR.
-4. CI on `main` reads the new version straight from the Dockerfile and pushes the full tag set above to Docker Hub.
+When SPIRE ships a new release, the next daily CI run picks it up automatically. No PR, no git tag, no Dockerfile edit needed.
 
 ## Limitations
 

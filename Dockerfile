@@ -1,15 +1,12 @@
-# Upstream SPIRE version this image tracks. Dependabot bumps both FROM
-# lines together (grouped via .github/dependabot.yml). The image tag
-# published by CI matches the SPIRE version (e.g. spire-dev:1.15.1 ⇒
-# spire-{server,agent}:1.15.1).
-#
-# NOTE: deliberately hardcoded — Dependabot's docker ecosystem does not
-# follow `ARG NAME=…` defaults referenced as `FROM image:${NAME}` (see
-# dependabot/dependabot-core#2057).
-FROM ghcr.io/spiffe/spire-server:1.15.0 AS spire-server
-FROM ghcr.io/spiffe/spire-agent:1.15.0  AS spire-agent
+# SPIRE doesn't publish a `:latest` tag upstream, so the version is a
+# build-arg. CI discovers the latest release from GitHub and passes it in;
+# local builds use the default below as a fallback. The image tag CI
+# publishes always matches the SPIRE version that was built in.
+ARG SPIRE_VERSION=1.15.0
+FROM ghcr.io/spiffe/spire-server:${SPIRE_VERSION} AS spire-server
+FROM ghcr.io/spiffe/spire-agent:${SPIRE_VERSION}  AS spire-agent
 
-FROM alpine:3.20
+FROM alpine:latest
 
 LABEL org.opencontainers.image.title="spire-dev"
 LABEL org.opencontainers.image.description="All-in-one SPIRE container for docker-compose dev environments"

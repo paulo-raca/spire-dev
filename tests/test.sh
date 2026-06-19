@@ -17,8 +17,10 @@ COMPOSE="docker compose -f $HERE/docker-compose.yml -p spire-dev-test"
 cleanup() { $COMPOSE down -v --remove-orphans >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-echo "==> Building image"
-docker build -t paulocosta56/spire-dev:ci "$ROOT"
+echo "==> Building image${SPIRE_VERSION:+ (SPIRE $SPIRE_VERSION)}"
+BUILD_ARGS=()
+[ -n "${SPIRE_VERSION:-}" ] && BUILD_ARGS+=(--build-arg "SPIRE_VERSION=$SPIRE_VERSION")
+docker build "${BUILD_ARGS[@]}" -t paulocosta56/spire-dev:ci "$ROOT"
 
 echo "==> Bringing up test stack"
 $COMPOSE up -d --wait
