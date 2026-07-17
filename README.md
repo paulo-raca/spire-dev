@@ -14,6 +14,7 @@ services:
       SPIRE_WORKLOADS: web api db
     volumes:
       - spire-sockets:/run/spire/sockets
+      - spire-data:/data/spire    # persist CA + datastore across `docker compose down`
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "8080:8080"   # JWKS endpoint (optional, expose if external)
@@ -38,6 +39,7 @@ services:
 
 volumes:
   spire-sockets:
+  spire-data:
 ```
 
 `web`, `api`, and `db` receive distinct SVIDs — `spiffe://test.local/web`, `…/api`, `…/db` — via the Workload API at `/run/spire/sockets/agent.sock`. The JWT bundle is published as plain JWKS at `http://spire:8080/jwks.json`.
@@ -46,12 +48,25 @@ volumes:
 
 | Component | Purpose |
 | --- | --- |
-| `spire-server` (upstream `ghcr.io/spiffe/spire-server`) | Mints SVIDs. Bound to `127.0.0.1:8081`, in-memory CA, sqlite datastore. |
+| `spire-server` (upstream `ghcr.io/spiffe/spire-server`) | Mints SVIDs. Bound to `127.0.0.1:8081`, disk-backed CA, sqlite datastore. |
 | `spire-agent` (upstream `ghcr.io/spiffe/spire-agent`) | Serves the Workload API on the unix socket. Uses the docker workload attestor. |
-| `bootstrap` (in `run.sh`) | Waits for the server to be ready, mints a join token, registers one entry per declared workload, then exec's the agent. |
+| `bootstrap` (in `run.sh`) | Waits for the server to be ready, mints (or reuses) a join token, registers one entry per declared workload, then exec's the agent. |
 | `busybox httpd` + `jq` poller | Periodically extracts JWT signing keys from the trust bundle and serves them as a standard JWKS document at `/jwks.json`. |
 
-Everything runs in one container under one entrypoint — restart the container and you get a fresh CA, fresh SVIDs, fresh JWKS.
+## State and persistence
+
+All persistent state — CA private keys, sqlite datastore, agent SVID, and the bootstrap join token — lives under `/data/spire`. The path is declared as a `VOLUME`, so:
+
+- `docker restart` always preserves state (the writable layer survives).
+- To survive `docker compose down` + `up`, mount a named volume at `/data/spire`:
+  ```yaml
+  volumes:
+    - spire-data:/data/spire
+  ```
+  Without an explicit mount, Compose creates a fresh anonymous volume each time the container is recreated, so the CA rotates.
+- To force a clean slate (fresh CA, fresh SVIDs, fresh JWKS), remove the volume: `docker compose down -v`.
+
+Because the datastore persists but each restart is idempotent, adding a new workload name to `SPIRE_WORKLOADS` and restarting registers just the new entry; removing one leaves the old (harmless) entry behind.
 
 ## Configuration
 
@@ -144,9 +159,10 @@ docker buildx imagetools inspect paulocosta56/spire-dev:latest --format '{{ json
 
 ## Limitations
 
-- **Tests and dev only.** The server's CA key lives in process memory and the sqlite datastore lives inside the container — restart and everything rotates. Use real SPIRE for production.
-- **Workload registration is static.** The set of workloads is fixed at container start by `SPIRE_WORKLOADS`. New workloads brought up later have to wait for a restart (or for the agent's sync to pick up entries you add via `spire-server entry create` against the admin socket).
+- **Tests and dev only.** The CA key sits on a docker volume in plaintext, node attestation is a single one-shot join token reused across restarts, and there's no upstream authority — fine for issuing SVIDs to a local compose stack, unsuitable for anything production-adjacent. Use real SPIRE for production.
+- **Workload registration is additive.** The set of workloads is taken from `SPIRE_WORKLOADS` at container start. New names get registered on restart; removed names leave orphaned entries in the datastore (harmless — nothing can attest to them without the docker label). Reset with `docker compose down -v`.
 - **Workloads come up after the spire container** in compose; the agent picks up their docker labels on its next sync cycle, so a workload that fetches an SVID the instant it starts may need to retry.
+- **Very long downtime rotates identity.** If the agent's persisted SVID expires between restarts (past its TTL), the stored join token has already been consumed and the agent can't re-attest. Recover by wiping `/data/spire` (`docker compose down -v`).
 
 ## License
 
