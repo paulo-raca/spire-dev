@@ -3,7 +3,7 @@ server {
     bind_port = "8081"
     socket_path = "/tmp/spire-server/private/api.sock"
     trust_domain = "@TRUST_DOMAIN@"
-    data_dir = "/run/spire/server-data"
+    data_dir = "/data/spire/server"
     log_level = "INFO"
     default_jwt_svid_ttl = "5m"
 }
@@ -12,14 +12,16 @@ plugins {
     DataStore "sql" {
         plugin_data {
             database_type = "sqlite3"
-            connection_string = "/run/spire/server-data/datastore.sqlite3"
+            connection_string = "/data/spire/server/datastore.sqlite3"
         }
     }
     NodeAttestor "join_token" {
         plugin_data {}
     }
-    KeyManager "memory" {
-        plugin_data {}
+    KeyManager "disk" {
+        plugin_data {
+            keys_path = "/data/spire/server/keys.json"
+        }
     }
 }
 

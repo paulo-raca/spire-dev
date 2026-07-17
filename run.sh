@@ -15,6 +15,13 @@
 # Exposes:
 #   /run/spire/sockets/agent.sock   SPIFFE Workload API
 #   http://<host>:${SPIRE_JWKS_PORT}/jwks.json   JWKS of the JWT trust bundle
+#
+# State:
+#   /data/spire                     CA keys, datastore, agent SVID, join token
+#                                   Declared as a VOLUME so it survives
+#                                   `docker restart` and container recreation.
+#                                   Mount a named volume to persist across
+#                                   `docker compose down`.
 set -eu
 
 : "${SPIRE_TRUST_DOMAIN:?must be set, e.g. test.local}"
@@ -25,7 +32,9 @@ SPIRE_JWKS_PORT="${SPIRE_JWKS_PORT:-8080}"
 SOCK="/tmp/spire-server/private/api.sock"
 export SOCK
 
-mkdir -p /run/spire/server-data /run/spire/agent-data /run/spire/sockets /var/www
+TOKEN_FILE="/data/spire/agent/join_token"
+
+mkdir -p /data/spire/server /data/spire/agent /run/spire/sockets /var/www
 chmod 1777 /run/spire/sockets
 
 sed "s|@TRUST_DOMAIN@|${SPIRE_TRUST_DOMAIN}|g" \
@@ -49,15 +58,25 @@ while [ "$i" -lt 60 ]; do
     sleep 1
 done
 [ -n "${BUNDLE:-}" ] || { echo "spire-server never returned a bundle" >&2; exit 1; }
-printf '%s' "$BUNDLE" >/run/spire/agent-data/bundle.crt
+printf '%s' "$BUNDLE" >/data/spire/agent/bundle.crt
 
-# Mint the agent's join token.
-TOKEN=$(/opt/spire/bin/spire-server token generate -socketPath "$SOCK" \
-        | awk '/Token:/{print $2}')
-[ -n "$TOKEN" ] || { echo "failed to mint join token" >&2; exit 1; }
+# Mint a join token on first run and persist it. On subsequent starts the
+# agent uses its stored SVID and ignores -joinToken, so reusing the (now
+# consumed) token is a no-op — we still pass it for the case where the
+# agent's SVID is present but the server has forgotten the attested node.
+if [ -f "$TOKEN_FILE" ]; then
+    TOKEN=$(cat "$TOKEN_FILE")
+else
+    TOKEN=$(/opt/spire/bin/spire-server token generate -socketPath "$SOCK" \
+            | awk '/Token:/{print $2}')
+    [ -n "$TOKEN" ] || { echo "failed to mint join token" >&2; exit 1; }
+    printf '%s' "$TOKEN" >"$TOKEN_FILE"
+fi
 PARENT="spiffe://${SPIRE_TRUST_DOMAIN}/spire/agent/join_token/${TOKEN}"
 
-# Register one entry per declared workload.
+# Register one entry per declared workload. `entry create` is not idempotent
+# — a duplicate returns non-zero — so `|| true` covers the restart case.
+# Newly-added workloads in SPIRE_WORKLOADS get picked up here on next start.
 for workload in $SPIRE_WORKLOADS; do
     /opt/spire/bin/spire-server entry create -socketPath "$SOCK" \
         -parentID "$PARENT" \

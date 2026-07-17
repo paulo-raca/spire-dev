@@ -36,6 +36,11 @@ ENV SPIRE_JWKS_PORT="8080"
 
 EXPOSE 8080
 VOLUME ["/run/spire/sockets"]
+# CA keys, sqlite datastore, agent SVID, and join token. Declared so an
+# anonymous volume is created if the user doesn't mount one — that alone
+# is enough for state to survive `docker restart`. Mount a named volume
+# here to survive `docker compose down` as well.
+VOLUME ["/data/spire"]
 
 HEALTHCHECK --interval=3s --timeout=2s --retries=20 --start-period=30s \
   CMD wget -qO- http://127.0.0.1:9091/ready >/dev/null 2>&1 \

@@ -1,10 +1,10 @@
 agent {
-    data_dir = "/run/spire/agent-data"
+    data_dir = "/data/spire/agent"
     log_level = "INFO"
     server_address = "127.0.0.1"
     server_port = "8081"
     socket_path = "/run/spire/sockets/agent.sock"
-    trust_bundle_path = "/run/spire/agent-data/bundle.crt"
+    trust_bundle_path = "/data/spire/agent/bundle.crt"
     trust_domain = "@TRUST_DOMAIN@"
 }
 
@@ -12,8 +12,10 @@ plugins {
     NodeAttestor "join_token" {
         plugin_data {}
     }
-    KeyManager "memory" {
-        plugin_data {}
+    KeyManager "disk" {
+        plugin_data {
+            directory = "/data/spire/agent"
+        }
     }
     WorkloadAttestor "docker" {
         plugin_data {
